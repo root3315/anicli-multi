@@ -39,7 +39,7 @@ ani = "anicli_multi.cli:main"
 anicli-multi = "anicli_multi.cli:main"
 
 [project.urls]
-Source = "https://github.com/sozda/anicli-multi"
+Source = "https://github.com/root3315/anicli-multi"
 
 [tool.hatch.build.targets.wheel]
 packages = ["anicli_multi"]
