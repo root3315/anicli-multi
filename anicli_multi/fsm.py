@@ -10,6 +10,7 @@ from anicli.cli.ptk_lib import fsm_route, fsm_state
 from rich import get_console
 
 from .grouping import TitleGroup
+from .probe import pick_playable
 
 CONSOLE = get_console()
 
@@ -154,7 +155,34 @@ class MultiSearchFSM(BaseAnimeFSM[MultiContext]):
     # ничего не выводит, и пользователь остаётся перед голым промптом.
     @fsm_state("step_3", prompt_message="~/{ROUTE_NAME}/{result}/episode/{episode} ")
     async def step_3(self, user_input: str):
-        await BaseAnimeFSM.step_3.handler(self, user_input)
+        """Выбрана озвучка. Перед плеером проверяем, что CDN вообще отвечает.
+
+        Без этой проверки mpv запускается и молча висит: ссылка получена, но до
+        сервера пакеты не доходят. Провайдеры режут CDN выборочно и список меняется,
+        поэтому просто берём следующую озвучку, пока не найдётся отвечающая.
+        """
+        sources = self.ctx.get("sources", [])
+        chosen = int(user_input) - 1
+        quality = self.ctx.get("default_quality", 2060)
+
+        with CONSOLE.status("Проверяю доступность видео…"):
+            playable = await pick_playable(sources, quality=quality, preferred_index=chosen)
+
+        if playable is None:
+            CONSOLE.print(
+                "[red]Ни одна озвучка не открывается — похоже, CDN режет провайдер.[/red]\n"
+                "[dim]Пропишите прокси в конфиге (поле «proxy») или запустите с --proxy[/dim]"
+            )
+            CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
+            return
+
+        if playable.index != chosen:
+            original = sources[chosen].title if chosen < len(sources) else "выбранная"
+            CONSOLE.print(
+                f"[yellow]«{original}» недоступна, включаю «{playable.source.title}»[/yellow]"
+            )
+
+        await BaseAnimeFSM.step_3.handler(self, str(playable.index + 1))
         CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
 
     @fsm_state("step_3_batched", prompt_message="~/{ROUTE_NAME}/{result}/episode/{episode} ")

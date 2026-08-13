@@ -63,6 +63,28 @@ def test_build_upstream_argv_respects_explicit_source():
     assert "animego" not in argv
 
 
+def test_proxy_from_config_is_injected():
+    argv = build_upstream_argv([], "animego", proxy="socks5://127.0.0.1:1080")
+    assert argv == ["cli", "-s", "animego", "--proxy", "socks5://127.0.0.1:1080"]
+
+
+def test_explicit_proxy_wins_over_config():
+    argv = build_upstream_argv(["--proxy", "http://mine"], "animego", proxy="socks5://from-config")
+    assert argv.count("--proxy") == 1
+    assert "http://mine" in argv
+    assert "socks5://from-config" not in argv
+
+
+def test_explicit_proxy_equals_form_wins():
+    argv = build_upstream_argv(["--proxy=http://mine"], "animego", proxy="socks5://from-config")
+    assert "socks5://from-config" not in argv
+
+
+def test_no_proxy_when_config_empty():
+    argv = build_upstream_argv([], "animego", proxy=None)
+    assert "--proxy" not in argv
+
+
 def test_build_upstream_argv_respects_long_source_flag():
     argv = build_upstream_argv(["--source", "hdrezka"], "animego")
     assert "animego" not in argv

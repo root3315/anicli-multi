@@ -33,22 +33,26 @@ def split_own_args(argv: list[str]) -> tuple[Optional[str], list[str]]:
     return sources, rest
 
 
-def build_upstream_argv(argv: list[str], primary: str) -> list[str]:
+def build_upstream_argv(argv: list[str], primary: str, proxy: Optional[str] = None) -> list[str]:
     """Собрать аргументы для `anicli-ru cli`.
 
     Позиционные слова склеиваются в один поисковый запрос и уходят в --search.
-    Явный -s/--source пользователя имеет приоритет над источником по умолчанию.
+    Явный -s/--source пользователя имеет приоритет над источником по умолчанию,
+    так же как явный --proxy имеет приоритет над прокси из конфига.
     """
     flags: list[str] = []
     words: list[str] = []
     index = 0
     has_explicit_source = False
+    has_explicit_proxy = False
 
     while index < len(argv):
         arg = argv[index]
         if arg.startswith("-"):
             if arg in ("-s", "--source") or arg.startswith("--source="):
                 has_explicit_source = True
+            if arg == "--proxy" or arg.startswith("--proxy="):
+                has_explicit_proxy = True
             flags.append(arg)
             takes_value = arg not in _BOOLEAN_FLAGS and "=" not in arg
             # значение следующим токеном: пробрасываем, не считая его запросом
@@ -64,6 +68,8 @@ def build_upstream_argv(argv: list[str], primary: str) -> list[str]:
     result = ["cli"]
     if not has_explicit_source:
         result += ["-s", primary]
+    if proxy and not has_explicit_proxy:
+        result += ["--proxy", proxy]
     result += flags
     if words:
         result += ["--search", " ".join(words)]
@@ -92,4 +98,4 @@ def main() -> None:
     install(APP, config)
 
     primary = config.sources[0] if config.sources else "animego"
-    upstream_app(args=build_upstream_argv(argv, primary), prog_name="ani")
+    upstream_app(args=build_upstream_argv(argv, primary, config.proxy), prog_name="ani")

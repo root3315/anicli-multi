@@ -28,6 +28,8 @@ class MultiConfig:
     bare_text_search: bool = True
     hdrezka_categories: list[str] = field(default_factory=lambda: list(DEFAULT_HDREZKA_CATEGORIES))
     max_results: int = DEFAULT_MAX_RESULTS
+    proxy: Optional[str] = None
+    """Прокси для всех источников. Задаётся один раз, флаг --proxy больше не нужен."""
 
 
 def config_path() -> Path:
@@ -63,6 +65,9 @@ def load_config(path: Optional[Path] = None) -> MultiConfig:
     max_results = raw.get("max_results")
     if isinstance(max_results, int) and not isinstance(max_results, bool) and max_results >= 1:
         config.max_results = max_results
+    proxy = raw.get("proxy")
+    if isinstance(proxy, str) and proxy.strip():
+        config.proxy = proxy.strip()
     return config
 
 

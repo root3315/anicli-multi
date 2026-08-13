@@ -111,22 +111,87 @@ def test_delegated_states_call_upstream_handler():
         assert state in MultiSearchFSM.states
 
 
-async def test_step_3_delegate_forwards_input_and_prints_hint(monkeypatch, capsys):
-    """Делегат обязан прокинуть ввод в upstream и напечатать подсказку после плеера."""
+def _fsm_with_sources(sources):
+    """FSM с минимальным контекстом: step_3 читает sources и качество."""
+    fsm = MultiSearchFSM.fsm_class.__new__(MultiSearchFSM.fsm_class)
+    fsm.context = type("C", (), {"_data": {"sources": sources, "default_quality": 720}})()
+    return fsm
+
+
+class _Src:
+    def __init__(self, title):
+        self.title = title
+
+
+async def test_step_3_plays_chosen_source_when_reachable(monkeypatch, capsys):
     from anicli.cli.fsm import BaseAnimeFSM
+
+    from anicli_multi.probe import Playable
 
     seen = {}
 
     async def fake_handler(_self, user_input):
         seen["input"] = user_input
 
-    monkeypatch.setattr(BaseAnimeFSM.step_3, "handler", fake_handler)
+    sources = [_Src("первая"), _Src("вторая")]
 
-    fsm = MultiSearchFSM.fsm_class.__new__(MultiSearchFSM.fsm_class)
-    await MultiSearchFSM.states["step_3"].handler(fsm, "2")
+    async def fake_pick(srcs, quality, timeout=6.0, preferred_index=0):
+        return Playable(index=preferred_index, source=srcs[preferred_index], video=object())
+
+    monkeypatch.setattr(BaseAnimeFSM.step_3, "handler", fake_handler)
+    monkeypatch.setattr("anicli_multi.fsm.pick_playable", fake_pick)
+
+    await MultiSearchFSM.states["step_3"].handler(_fsm_with_sources(sources), "2")
 
     assert seen["input"] == "2"
     assert ".." in capsys.readouterr().out
+
+
+async def test_step_3_switches_to_working_source(monkeypatch, capsys):
+    """Выбранная озвучка мертва — молча берём рабочую и говорим об этом."""
+    from anicli.cli.fsm import BaseAnimeFSM
+
+    from anicli_multi.probe import Playable
+
+    seen = {}
+
+    async def fake_handler(_self, user_input):
+        seen["input"] = user_input
+
+    sources = [_Src("мертвая"), _Src("рабочая")]
+
+    async def fake_pick(srcs, quality, timeout=6.0, preferred_index=0):
+        return Playable(index=1, source=srcs[1], video=object())
+
+    monkeypatch.setattr(BaseAnimeFSM.step_3, "handler", fake_handler)
+    monkeypatch.setattr("anicli_multi.fsm.pick_playable", fake_pick)
+
+    await MultiSearchFSM.states["step_3"].handler(_fsm_with_sources(sources), "1")
+
+    assert seen["input"] == "2", "должен уйти индекс рабочей озвучки"
+    out = capsys.readouterr().out
+    assert "рабочая" in out
+
+
+async def test_step_3_reports_when_nothing_is_reachable(monkeypatch, capsys):
+    from anicli.cli.fsm import BaseAnimeFSM
+
+    called = {"handler": False}
+
+    async def fake_handler(_self, user_input):
+        called["handler"] = True
+
+    async def fake_pick(srcs, quality, timeout=6.0, preferred_index=0):
+        return None
+
+    monkeypatch.setattr(BaseAnimeFSM.step_3, "handler", fake_handler)
+    monkeypatch.setattr("anicli_multi.fsm.pick_playable", fake_pick)
+
+    await MultiSearchFSM.states["step_3"].handler(_fsm_with_sources([_Src("а")]), "1")
+
+    assert called["handler"] is False, "плеер не должен запускаться впустую"
+    out = capsys.readouterr().out
+    assert "proxy" in out.lower()
 
 
 async def test_step_3_batched_delegate_forwards_input(monkeypatch, capsys):

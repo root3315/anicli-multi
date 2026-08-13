@@ -98,6 +98,22 @@ def test_animation_only_is_accepted(tmp_path):
     assert load_config(path).hdrezka_categories == ["animation"]
 
 
+def test_proxy_default_is_none(tmp_path):
+    assert load_config(tmp_path / "нет.json").proxy is None
+
+
+def test_proxy_from_file(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"proxy": "socks5://127.0.0.1:1080"}), encoding="utf-8")
+    assert load_config(path).proxy == "socks5://127.0.0.1:1080"
+
+
+def test_blank_proxy_is_ignored(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"proxy": "   "}), encoding="utf-8")
+    assert load_config(path).proxy is None
+
+
 def test_max_results_default(tmp_path):
     assert load_config(tmp_path / "нет.json").max_results == 30
 
