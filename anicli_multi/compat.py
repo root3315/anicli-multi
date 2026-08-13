@@ -72,6 +72,28 @@ def check_compat() -> list[str]:
     return problems
 
 
+def check_hdrezka_override() -> list[str]:
+    """Проверить, что расширенный поиск hdrezka можно подключить.
+
+    Мы опираемся на приватный PageSearch._split_doc и CSS-класс вёрстки сайта.
+    Если контракт изменился, hdrezka работает штатным экстрактором в аниме-режиме.
+    """
+    try:
+        from anicli_api._http import ANUBIS_BYPASS_HEADERS  # noqa: F401
+        from anicli_api.source import hdrezka
+        from anicli_api.source.parsers.hdrezka_parser import PageSearch
+    except ImportError as exc:
+        return [f"не удалось импортировать hdrezka из anicli-api: {exc}"]
+
+    problems: list[str] = []
+    if not callable(getattr(PageSearch, "_split_doc", None)):
+        problems.append("у PageSearch нет метода _split_doc")
+    for name in ("Search", "Extractor"):
+        if getattr(hdrezka, name, None) is None:
+            problems.append(f"в anicli_api.source.hdrezka нет {name}")
+    return problems
+
+
 def assert_compat() -> None:
     """Бросить CompatError, если контракт anicli-ru изменился."""
     problems = check_compat()

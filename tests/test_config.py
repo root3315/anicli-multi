@@ -68,6 +68,43 @@ def test_default_instances_do_not_share_sources_list():
     assert second.sources == DEFAULT_SOURCES
 
 
+def test_hdrezka_categories_default_is_all(tmp_path):
+    config = load_config(tmp_path / "нет.json")
+    assert sorted(config.hdrezka_categories) == ["animation", "cartoons", "films", "series", "show"]
+
+
+def test_hdrezka_categories_from_file(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"hdrezka_categories": ["films", "series"]}), encoding="utf-8")
+    assert load_config(path).hdrezka_categories == ["films", "series"]
+
+
+def test_unknown_hdrezka_categories_dropped(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"hdrezka_categories": ["films", "чепуха"]}), encoding="utf-8")
+    assert load_config(path).hdrezka_categories == ["films"]
+
+
+def test_all_unknown_hdrezka_categories_fall_back_to_default(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"hdrezka_categories": ["чепуха"]}), encoding="utf-8")
+    assert sorted(load_config(path).hdrezka_categories) == ["animation", "cartoons", "films", "series", "show"]
+
+
+def test_animation_only_is_accepted(tmp_path):
+    """Способ вернуть прежнее поведение — только аниме."""
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"hdrezka_categories": ["animation"]}), encoding="utf-8")
+    assert load_config(path).hdrezka_categories == ["animation"]
+
+
+def test_hdrezka_categories_default_not_shared_between_instances():
+    first = MultiConfig()
+    second = MultiConfig()
+    first.hdrezka_categories.append("чепуха")
+    assert "чепуха" not in second.hdrezka_categories
+
+
 def test_saved_file_is_readable_utf8(tmp_path):
     path = tmp_path / "config.json"
     save_config(MultiConfig(sources=["животные"]), path)

@@ -9,11 +9,36 @@ from anicli.common.extractors import dynamic_load_extractor_module
 from rich import get_console
 
 from .aggregate import SourceFailure, search_all
+from .compat import check_hdrezka_override
 from .config import MultiConfig
 from .fsm import NAV_HINT, MultiSearchFSM
 from .grouping import group_results
+from .hdrezka_all import HdrezkaAllExtractor
 
 CONSOLE = get_console()
+
+
+def _instantiate(name: str, hdrezka_categories: Optional[Sequence[str]]) -> Optional[Any]:
+    """Создать экстрактор источника. None — источник недоступен.
+
+    Для hdrezka используется расширенный экстрактор со всеми категориями каталога.
+    Если контракт anicli-api изменился, откатываемся на штатный аниме-режим —
+    инструмент остаётся рабочим.
+    """
+    if name == "hdrezka":
+        problems = check_hdrezka_override()
+        if problems:
+            CONSOLE.print(
+                "[yellow]hdrezka: расширенный поиск недоступен (" + "; ".join(problems) + "), только аниме[/yellow]"
+            )
+        else:
+            return HdrezkaAllExtractor(categories=hdrezka_categories)
+    try:
+        module = dynamic_load_extractor_module(name)
+    except (NameError, ImportError):
+        CONSOLE.print(f"[yellow]Источник {name} недоступен, пропущен[/yellow]")
+        return None
+    return module.Extractor()
 
 
 def build_extractors(
@@ -23,6 +48,7 @@ def build_extractors(
     headers: Optional[dict] = None,
     cookies: Optional[Any] = None,
     timeout: Optional[float] = None,
+    hdrezka_categories: Optional[Sequence[str]] = None,
 ) -> dict[str, Any]:
     """Создать по экземпляру Extractor на источник с общим HTTP-клиентом.
 
@@ -52,12 +78,9 @@ def build_extractors(
 
     extractors: dict[str, Any] = {}
     for name in sources:
-        try:
-            module = dynamic_load_extractor_module(name)
-        except (NameError, ImportError):
-            CONSOLE.print(f"[yellow]Источник {name} недоступен, пропущен[/yellow]")
+        extractor = _instantiate(name, hdrezka_categories)
+        if extractor is None:
             continue
-        extractor = module.Extractor()
         extractor.http = http
         extractor.http_async = http_async
         extractors[name] = extractor
@@ -77,6 +100,7 @@ async def on_start_build_extractors(ctx: Any) -> None:
         headers=ctx.data.get("headers"),
         cookies=ctx.data.get("cookies"),
         timeout=ctx.data.get("timeout"),
+        hdrezka_categories=ctx.data.get("multi_hdrezka_categories"),
     )
 
 
@@ -101,7 +125,7 @@ async def multi_search_command(query: str, ctx: Any):
     with CONSOLE.status(f"Ищу «{query}» на {len(extractors)} источниках…"):
         per_source, failures = await search_all(extractors, query, timeout=timeout)
 
-    groups = group_results(per_source, priority=list(extractors))
+    groups = group_results(per_source, priority=list(extractors), query=query)
     if not groups:
         CONSOLE.print("Ничего не найдено")
         _print_failures(failures)
@@ -174,6 +198,7 @@ def install(app: Any, config: MultiConfig) -> None:
 
     app.context._data["multi_sources"] = list(config.sources)
     app.context._data["multi_timeout"] = config.timeout
+    app.context._data["multi_hdrezka_categories"] = list(config.hdrezka_categories)
 
     # экстракторы строятся стартовым событием: на этот момент прокси и заголовки
     # из аргументов CLI уже применены к контексту
