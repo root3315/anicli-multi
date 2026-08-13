@@ -10,7 +10,7 @@ from rich import get_console
 
 from .aggregate import SourceFailure, search_all
 from .config import MultiConfig
-from .fsm import MultiSearchFSM
+from .fsm import NAV_HINT, MultiSearchFSM
 from .grouping import group_results
 
 CONSOLE = get_console()
@@ -109,6 +109,7 @@ async def multi_search_command(query: str, ctx: Any):
 
     render_table(f"Результаты: {query}", groups)
     _print_failures(failures)
+    CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
 
     await ctx.app.start_fsm(
         "multi",

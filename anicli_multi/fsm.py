@@ -7,8 +7,11 @@ from anicli.cli.fsm import BaseAnimeFSM
 from anicli.cli.helpers.render import render_table
 from anicli.cli.helpers.validator import validate_prompt_index
 from anicli.cli.ptk_lib import fsm_route, fsm_state
+from rich import get_console
 
 from .grouping import TitleGroup
+
+CONSOLE = get_console()
 
 
 class MultiContext(TypedDict, total=False):
@@ -55,16 +58,43 @@ def resolve_entry(group: TitleGroup) -> Optional[tuple[str, Any]]:
     return None
 
 
+# Навигация есть в anicli-ru (BaseFSM.NAVIGATION_COMMANDS), но нигде не показана
+# пользователю: после просмотра серии он оказывается перед голым промптом и не знает,
+# как выйти. Показываем подсказку в трёх местах — под таблицей серий, после
+# воспроизведения и в тексте ошибки ввода.
+NAV_HINT = "«..» назад · «~» в главное меню"
+
+MAX_PROMPT_TITLE = 40
+
+
+def shorten_title(title: str, limit: int = MAX_PROMPT_TITLE) -> str:
+    """Укоротить название для промпта.
+
+    Длинные названия («Я перевоплотился в седьмого принца, так что…») разносят
+    промпт на несколько строк и делают ввод нечитаемым.
+    """
+    title = title.strip()
+    if len(title) <= limit:
+        return title
+    return title[: limit - 1].rstrip() + "…"
+
+
 @fsm_route("multi")
 class MultiSearchFSM(BaseAnimeFSM[MultiContext]):
     ROUTE_NAME = "multi"
 
     def _get_user_dynamic_validator(self, state_name: str, user_input: str) -> Union[bool, str]:
         if state_name == "step_1":
-            return validate_prompt_index(self.ctx.get("groups", []), user_input)
-        if state_name == "step_1_source":
-            return validate_prompt_index(self.ctx.get("group_entries", []), user_input)
-        return super()._get_user_dynamic_validator(state_name, user_input)
+            result: Union[bool, str] = validate_prompt_index(self.ctx.get("groups", []), user_input)
+        elif state_name == "step_1_source":
+            result = validate_prompt_index(self.ctx.get("group_entries", []), user_input)
+        else:
+            result = super()._get_user_dynamic_validator(state_name, user_input)
+        # текст ошибки — единственная обратная связь, которую пользователь гарантированно
+        # увидит, застряв на шаге; дописываем к нему способ выйти
+        if isinstance(result, str):
+            return f"{result} · {NAV_HINT}"
+        return result
 
     def _get_user_dynamic_completions(
         self, state_name: str, current_text: str
@@ -114,6 +144,20 @@ class MultiSearchFSM(BaseAnimeFSM[MultiContext]):
         self.ctx["anime"] = anime
         self.ctx["episodes"] = episodes
 
-        self.set_prompt_var("result", anime.title)
+        self.set_prompt_var("result", shorten_title(anime.title))
         render_table(anime.title, episodes)
+        CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
         await self.next_state("step_2")
+
+    # Ниже — тонкие делегаты к наследуемым шагам. Своей логики не добавляют,
+    # только печатают подсказку после возврата из плеера: в этот момент upstream
+    # ничего не выводит, и пользователь остаётся перед голым промптом.
+    @fsm_state("step_3", prompt_message="~/{ROUTE_NAME}/{result}/episode/{episode} ")
+    async def step_3(self, user_input: str):
+        await BaseAnimeFSM.step_3.handler(self, user_input)
+        CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
+
+    @fsm_state("step_3_batched", prompt_message="~/{ROUTE_NAME}/{result}/episode/{episode} ")
+    async def step_3_batched(self, user_input: str):
+        await BaseAnimeFSM.step_3_batched.handler(self, user_input)
+        CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")

@@ -19,6 +19,8 @@ REQUIRED_CONTEXT_KEYS: tuple[str, ...] = (
 
 _REQUIRED_FSM_METHODS = ("next_state", "go_back", "set_prompt_var")
 _REQUIRED_FSM_STATES = ("step_1", "step_2", "step_3", "step_3_batched")
+# состояния, обработчик которых мы вызываем напрямую из своих делегатов
+_DELEGATED_FSM_STATES = ("step_3", "step_3_batched")
 
 
 class CompatError(RuntimeError):
@@ -47,8 +49,12 @@ def check_compat() -> list[str]:
             problems.append(f"у BaseAnimeFSM нет метода {method}()")
 
     for state in _REQUIRED_FSM_STATES:
-        if getattr(BaseAnimeFSM, state, None) is None:
+        state_obj = getattr(BaseAnimeFSM, state, None)
+        if state_obj is None:
             problems.append(f"у BaseAnimeFSM нет состояния {state}")
+        elif state in _DELEGATED_FSM_STATES and not callable(getattr(state_obj, "handler", None)):
+            # мы вызываем обработчик напрямую, чтобы дописать подсказку после плеера
+            problems.append(f"у состояния {state} нет вызываемого handler")
 
     manager = getattr(APP, "command_manager", None)
     if manager is None:
