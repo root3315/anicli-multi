@@ -98,6 +98,29 @@ def test_animation_only_is_accepted(tmp_path):
     assert load_config(path).hdrezka_categories == ["animation"]
 
 
+def test_max_results_default(tmp_path):
+    assert load_config(tmp_path / "нет.json").max_results == 30
+
+
+def test_max_results_from_file(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"max_results": 15}), encoding="utf-8")
+    assert load_config(path).max_results == 15
+
+
+def test_max_results_below_one_is_ignored(tmp_path):
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"max_results": 0}), encoding="utf-8")
+    assert load_config(path).max_results == 30
+
+
+def test_max_results_bool_is_ignored(tmp_path):
+    """True — это int в Python, но не осмысленный лимит."""
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"max_results": True}), encoding="utf-8")
+    assert load_config(path).max_results == 30
+
+
 def test_hdrezka_categories_default_not_shared_between_instances():
     first = MultiConfig()
     second = MultiConfig()

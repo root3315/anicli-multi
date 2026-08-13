@@ -4,8 +4,47 @@ from anicli_multi.aggregate import search_all
 from anicli_multi.commands import build_extractors
 from anicli_multi.config import DEFAULT_SOURCES
 from anicli_multi.grouping import group_results
+from anicli_multi.normalize import normalize_title
+from anicli_multi.query import parse_query
+from anicli_multi.refine import refine
 
 pytestmark = pytest.mark.network
+
+
+async def _search(raw_query, max_results=30):
+    """Полный путь запроса так, как его проходит команда поиска."""
+    parsed = parse_query(raw_query)
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, _ = await search_all(extractors, parsed.text, timeout=15)
+    groups = group_results(per_source, priority=DEFAULT_SOURCES, query=parsed.text)
+    return refine(groups, normalize_title(parsed.text), parsed.kind, max_results)
+
+
+async def test_type_word_in_query_finds_the_series():
+    """Тот самый запрос, с которого началась задача."""
+    result = await _search("жизнь по вызову сериал")
+    assert result.groups, "сериал не найден"
+    assert result.groups[0].kind == "сериал"
+    assert "жизнь по вызову" in result.groups[0].title.lower()
+
+
+async def test_noise_is_cut_off():
+    result = await _search("жизнь по вызову")
+    assert len(result.groups) <= 10, f"слишком много строк: {[g.title for g in result.groups]}"
+    assert result.hidden_irrelevant > 0
+
+
+async def test_type_word_that_is_part_of_the_title_falls_back():
+    """«наруто последний фильм»: фильм лежит в разделе аниме, фильтр должен откатиться."""
+    result = await _search("наруто последний фильм")
+    assert result.groups
+    assert any("последний" in g.title.lower() for g in result.groups)
+
+
+async def test_result_never_exceeds_limit():
+    result = await _search("наруто", max_results=10)
+    assert len(result.groups) == 10
+    assert result.total > 10
 
 
 async def test_real_search_returns_grouped_results():

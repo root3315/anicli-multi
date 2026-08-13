@@ -3,7 +3,6 @@
 from collections.abc import Sequence
 from typing import Any, Optional
 
-from anicli.cli.helpers.render import render_table
 from anicli.cli.ptk_lib import command
 from anicli.common.extractors import dynamic_load_extractor_module
 from rich import get_console
@@ -14,6 +13,10 @@ from .config import MultiConfig
 from .fsm import NAV_HINT, MultiSearchFSM
 from .grouping import group_results
 from .hdrezka_all import HdrezkaAllExtractor
+from .normalize import normalize_title
+from .query import parse_query
+from .refine import refine
+from .render import render_groups, summary_line
 
 CONSOLE = get_console()
 
@@ -118,30 +121,43 @@ async def multi_search_command(query: str, ctx: Any):
 
     extractors: dict[str, Any] = ctx.data.get("multi_extractors") or {}
     timeout: float = ctx.data.get("multi_timeout", 10.0)
+    max_results: int = ctx.data.get("multi_max_results", 30)
     if not extractors:
         CONSOLE.print("[red]Ни один источник не доступен[/red]")
         return
 
-    with CONSOLE.status(f"Ищу «{query}» на {len(extractors)} источниках…"):
-        per_source, failures = await search_all(extractors, query, timeout=timeout)
+    # «жизнь по вызову сериал» -> ищем «жизнь по вызову», фильтруем по типу
+    parsed = parse_query(query)
+    if not parsed.text:
+        CONSOLE.print("[yellow]Нужен запрос: просто наберите название[/yellow]")
+        return
 
-    groups = group_results(per_source, priority=list(extractors), query=query)
-    if not groups:
+    with CONSOLE.status(f"Ищу «{parsed.text}» на {len(extractors)} источниках…"):
+        per_source, failures = await search_all(extractors, parsed.text, timeout=timeout)
+
+    groups = group_results(per_source, priority=list(extractors), query=parsed.text)
+    result = refine(groups, normalize_title(parsed.text), parsed.kind, max_results)
+    if not result.groups:
         CONSOLE.print("Ничего не найдено")
         _print_failures(failures)
         return
 
-    render_table(f"Результаты: {query}", groups)
+    render_groups(f"Результаты: {parsed.raw}", result.groups)
     _print_failures(failures)
+    summary = summary_line(result)
+    if summary:
+        CONSOLE.print(f"[dim]{summary}[/dim]")
     CONSOLE.print(f"[dim]{NAV_HINT}[/dim]")
 
     await ctx.app.start_fsm(
         "multi",
         "step_1",
         context={
-            "query": query,
-            "groups": groups,
-            "extractor_name": groups[0].entries[0][0],
+            # в FSM уходит только показанный срез, поэтому выбрать невидимую
+            # строку невозможно по построению
+            "query": parsed.text,
+            "groups": result.groups,
+            "extractor_name": result.groups[0].entries[0][0],
             "default_quality": ctx.data.get("quality", 2060),
             "mpv_opts": ctx.data.get("mpv_opts", ""),
             "m3u_size": ctx.data.get("m3u_size", 6),
@@ -199,6 +215,7 @@ def install(app: Any, config: MultiConfig) -> None:
     app.context._data["multi_sources"] = list(config.sources)
     app.context._data["multi_timeout"] = config.timeout
     app.context._data["multi_hdrezka_categories"] = list(config.hdrezka_categories)
+    app.context._data["multi_max_results"] = config.max_results
 
     # экстракторы строятся стартовым событием: на этот момент прокси и заголовки
     # из аргументов CLI уже применены к контексту

@@ -197,6 +197,12 @@ async def test_startup_event_passes_categories_from_context():
     assert app.context.data["multi_extractors"]["hdrezka"].categories == frozenset({"series"})
 
 
+def test_install_puts_max_results_into_context():
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig(max_results=15))
+    assert app.context.data["multi_max_results"] == 15
+
+
 def test_install_puts_hdrezka_categories_into_context():
     app = FakeApp(["search", "ongoing", "history", "exit"])
     install(app, MultiConfig(hdrezka_categories=["films"]))
