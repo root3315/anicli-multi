@@ -16,6 +16,9 @@ DEFAULT_TIMEOUT = 10.0
 # Разделы каталога hdrezka, по которым идёт поиск. ["animation"] вернёт прежнее
 # поведение — только аниме.
 DEFAULT_HDREZKA_CATEGORIES: list[str] = ["animation", "films", "series", "cartoons", "show"]
+# Сколько строк показывать. Скрытые строки не выбираются — в FSM уходит только
+# показанный срез, поэтому лимит честный, а не косметический.
+DEFAULT_MAX_RESULTS = 30
 
 
 @dataclass
@@ -24,6 +27,7 @@ class MultiConfig:
     timeout: float = DEFAULT_TIMEOUT
     bare_text_search: bool = True
     hdrezka_categories: list[str] = field(default_factory=lambda: list(DEFAULT_HDREZKA_CATEGORIES))
+    max_results: int = DEFAULT_MAX_RESULTS
 
 
 def config_path() -> Path:
@@ -56,6 +60,9 @@ def load_config(path: Optional[Path] = None) -> MultiConfig:
         known = [str(c) for c in categories if str(c) in KNOWN_CATEGORIES]
         if known:
             config.hdrezka_categories = known
+    max_results = raw.get("max_results")
+    if isinstance(max_results, int) and not isinstance(max_results, bool) and max_results >= 1:
+        config.max_results = max_results
     return config
 
 
