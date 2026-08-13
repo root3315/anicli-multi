@@ -5,6 +5,8 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # ручной запуск: публикует версию, указанную в pyproject.toml на main
+  workflow_dispatch:
 
 jobs:
   test:
