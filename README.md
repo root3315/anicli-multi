@@ -44,15 +44,25 @@
 
 Нужен [mpv](https://mpv.io/) в PATH и Python 3.9 или новее.
 
-```
-pipx install anicli-multi
-```
-
-или
+Репозиторий приватный, поэтому ставится через авторизованный
+[gh](https://cli.github.com/) — на Linux, macOS и Windows одинаково:
 
 ```
-uv tool install anicli-multi
+gh auth login
+gh release download v0.2.0 --repo root3315/anicli-multi --pattern '*.whl'
+pipx install ./anicli_multi-0.2.0-py3-none-any.whl
 ```
+
+Вместо `pipx` можно `uv tool install ./anicli_multi-0.2.0-py3-none-any.whl`.
+
+Одной командой, если git настроен на работу с GitHub (`gh auth setup-git`):
+
+```
+pipx install git+https://github.com/root3315/anicli-multi.git@v0.2.0
+```
+
+Установка mpv: `sudo apt install mpv` на Debian и Ubuntu, `sudo pacman -S mpv` на Arch,
+`brew install mpv` на macOS, `winget install shinchiro.mpv` на Windows.
 
 ## Использование
 
