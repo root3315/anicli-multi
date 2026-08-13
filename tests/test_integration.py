@@ -1,0 +1,44 @@
+import pytest
+
+from anicli_multi.aggregate import search_all
+from anicli_multi.commands import build_extractors
+from anicli_multi.config import DEFAULT_SOURCES
+from anicli_multi.grouping import group_results
+
+pytestmark = pytest.mark.network
+
+
+async def test_real_search_returns_grouped_results():
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, failures = await search_all(extractors, "наруто", timeout=15)
+    assert per_source, f"ни один источник не ответил: {failures}"
+
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+    assert groups
+
+    keys = [g.key for g in groups]
+    assert len(keys) == len(set(keys)), "в выдаче есть дубли групп"
+
+
+async def test_multi_source_title_is_grouped_once():
+    """«Наруто» есть минимум на двух источниках — должна быть одна строка."""
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, _ = await search_all(extractors, "наруто", timeout=15)
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+
+    multi = [g for g in groups if len(g.sources) > 1]
+    assert multi, "ожидалась хотя бы одна группа с несколькими источниками"
+    for group in multi:
+        assert len(group.sources) == len(set(group.sources))
+
+
+async def test_group_entries_carry_their_own_source():
+    """Каждая запись в группе помнит свой источник — от этого зависит история просмотров."""
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, _ = await search_all(extractors, "наруто", timeout=15)
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+
+    for group in groups:
+        for source, result in group.entries:
+            assert source in DEFAULT_SOURCES
+            assert hasattr(result, "a_get_anime")

@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "anicli-multi"
+version = "0.1.0"
+description = "Мультиисточниковый поиск аниме поверх anicli-ru"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [{name = "sozda"}]
+keywords = ["anime", "cli", "anicli", "mpv"]
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "anicli-ru>=6.1,<7",
+    "platformdirs>=3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff>=0.6",
+    "mypy>=1.8",
+]
+
+[project.scripts]
+ani = "anicli_multi.cli:main"
+anicli-multi = "anicli_multi.cli:main"
+
+[project.urls]
+Source = "https://github.com/sozda/anicli-multi"
+
+[tool.hatch.build.targets.wheel]
+packages = ["anicli_multi"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["network: требует доступа в интернет (не запускается по умолчанию)"]
+addopts = "-m 'not network'"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+# python_version намеренно не задан: mypy 2.x не принимает таргет 3.9, а поддержку
+# 3.9 мы всё равно проверяем прогоном тестов на 3.9 в CI. Здесь используется
+# версия запущенного интерпретатора.
+ignore_missing_imports = true
