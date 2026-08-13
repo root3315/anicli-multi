@@ -125,7 +125,7 @@ async def multi_search_command(query: str, ctx: Any):
     with CONSOLE.status(f"Ищу «{query}» на {len(extractors)} источниках…"):
         per_source, failures = await search_all(extractors, query, timeout=timeout)
 
-    groups = group_results(per_source, priority=list(extractors))
+    groups = group_results(per_source, priority=list(extractors), query=query)
     if not groups:
         CONSOLE.print("Ничего не найдено")
         _print_failures(failures)

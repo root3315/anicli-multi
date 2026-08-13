@@ -45,10 +45,29 @@ def _priority_index(source: str, priority: Sequence[str]) -> int:
         return len(priority)
 
 
+def relevance_rank(query_key: str, title_key: str) -> int:
+    """Насколько название отвечает запросу. Меньше — релевантнее.
+
+    Без этого ранга выдача сортируется числом источников, и по запросу
+    «во все тяжкие» полсотни аниме, случайно совпавших по слову «во» и найденных
+    на трёх источниках, обходят сам сериал, найденный на одном.
+    """
+    if not query_key:
+        return 0
+    if title_key == query_key:
+        return 0
+    if title_key.startswith(query_key):
+        return 1
+    if query_key in title_key:
+        return 2
+    return 3
+
+
 def group_results(
     per_source: Sequence[tuple[str, Sequence[Any]]],
     priority: Sequence[str],
     kind_resolver: KindResolver = resolve_kind,
+    query: str = "",
 ) -> list[TitleGroup]:
     """Сгруппировать результаты по паре (тип контента, нормализованное название).
 
@@ -83,8 +102,10 @@ def group_results(
         group.title = best_result.title.strip()
         ordered.append(group)
 
+    query_key = normalize_title(query)
     ordered.sort(
         key=lambda g: (
+            relevance_rank(query_key, g.key[1]),
             -len(g.entries),
             _priority_index(g.entries[0][0], priority),
             g.title.lower(),

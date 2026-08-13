@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "anicli-multi"
-version = "0.1.1"
-description = "Мультиисточниковый поиск аниме поверх anicli-ru"
+version = "0.2.0"
+description = "Мультиисточниковый поиск аниме, фильмов и сериалов поверх anicli-ru"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}

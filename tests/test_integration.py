@@ -32,6 +32,36 @@ async def test_multi_source_title_is_grouped_once():
         assert len(group.sources) == len(set(group.sources))
 
 
+async def test_real_search_finds_a_movie():
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, failures = await search_all(extractors, "интерстеллар", timeout=15)
+    assert per_source, f"ни один источник не ответил: {failures}"
+
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+    films = [g for g in groups if g.kind == "фильм"]
+    assert films, f"фильм не найден, типы в выдаче: {sorted({g.kind for g in groups})}"
+
+
+async def test_real_search_finds_a_series():
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, failures = await search_all(extractors, "во все тяжкие", timeout=15)
+    assert per_source, f"ни один источник не ответил: {failures}"
+
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+    series = [g for g in groups if g.kind == "сериал"]
+    assert series, f"сериал не найден, типы в выдаче: {sorted({g.kind for g in groups})}"
+
+
+async def test_anime_search_still_groups_across_sources():
+    """Регрессия: добавление типа в ключ не должно разбить склейку аниме."""
+    extractors = build_extractors(DEFAULT_SOURCES)
+    per_source, _ = await search_all(extractors, "наруто", timeout=15)
+    groups = group_results(per_source, priority=DEFAULT_SOURCES)
+
+    multi = [g for g in groups if len(g.sources) > 1]
+    assert multi, "ожидалась хотя бы одна группа с несколькими источниками"
+
+
 async def test_group_entries_carry_their_own_source():
     """Каждая запись в группе помнит свой источник — от этого зависит история просмотров."""
     extractors = build_extractors(DEFAULT_SOURCES)

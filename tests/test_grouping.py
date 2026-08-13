@@ -1,4 +1,4 @@
-from anicli_multi.grouping import TitleGroup, group_results
+from anicli_multi.grouping import TitleGroup, group_results, relevance_rank
 
 
 class FakeResult:
@@ -167,6 +167,47 @@ def test_badge_survives_real_rich_render():
     per_source = [("hdrezka", [FakeResult("Интерстеллар", FILM_URL)])]
     plain = render(str(group_results(per_source, PRIORITY)[0])).plain
     assert "Интерстеллар [фильм]" in plain
+
+
+def test_relevance_rank_orders_exact_prefix_substring_rest():
+    assert relevance_rank("во все тяжкие", "во все тяжкие") == 0
+    assert relevance_rank("во все тяжкие", "во все тяжкие мини эпизоды") == 1
+    assert relevance_rank("во все тяжкие", "el camino во все тяжкие") == 2
+    assert relevance_rank("во все тяжкие", "власть книжного червя") == 3
+
+
+def test_relevance_rank_without_query_is_neutral():
+    assert relevance_rank("", "что угодно") == 0
+
+
+def test_exact_match_outranks_multi_source_noise():
+    """Тот самый случай: сериал с одного источника должен быть выше мусора с трёх."""
+    per_source = [
+        ("animego", [FakeResult("Призванный в другой мир во второй раз"), FakeResult("Во все тяжкие мини")]),
+        ("yummy-anime", [FakeResult("Призванный в другой мир во второй раз")]),
+        ("anilibria", [FakeResult("Призванный в другой мир во второй раз")]),
+        ("hdrezka", [FakeResult("Во все тяжкие", FILM_URL)]),
+    ]
+    groups = group_results(per_source, PRIORITY, query="во все тяжкие")
+    assert groups[0].title == "Во все тяжкие"
+
+
+def test_prefix_match_outranks_substring_match():
+    per_source = [
+        ("animego", [FakeResult("Наука Интерстеллар"), FakeResult("Интерстеллар навсегда")]),
+    ]
+    groups = group_results(per_source, PRIORITY, query="интерстеллар")
+    assert [g.title for g in groups] == ["Интерстеллар навсегда", "Наука Интерстеллар"]
+
+
+def test_without_query_sorting_is_unchanged():
+    """Обратная совместимость: без запроса первым ключом остаётся число источников."""
+    per_source = [
+        ("animego", [FakeResult("Один"), FakeResult("Два")]),
+        ("hdrezka", [FakeResult("Два")]),
+    ]
+    groups = group_results(per_source, PRIORITY)
+    assert groups[0].title == "Два"
 
 
 def test_custom_kind_resolver_is_used():
