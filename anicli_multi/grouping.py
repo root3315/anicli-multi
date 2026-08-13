@@ -7,7 +7,7 @@ from typing import Any, Callable
 from rich.markup import escape
 
 from .kinds import ANIME, resolve_kind
-from .normalize import normalize_title
+from .normalize import normalize_title, strip_service_info
 
 # (имя источника, объект результата поиска)
 Entry = tuple[str, Any]
@@ -45,12 +45,20 @@ def _priority_index(source: str, priority: Sequence[str]) -> int:
         return len(priority)
 
 
+IRRELEVANT_RANK = 4
+"""Ранг, начиная с которого строка считается нерелевантной."""
+
+
 def relevance_rank(query_key: str, title_key: str) -> int:
     """Насколько название отвечает запросу. Меньше — релевантнее.
 
     Без этого ранга выдача сортируется числом источников, и по запросу
     «во все тяжкие» полсотни аниме, случайно совпавших по слову «во» и найденных
     на трёх источниках, обходят сам сериал, найденный на одном.
+
+    Ступень 3 (все значимые слова вразбивку) нужна для запросов, где полной фразы
+    в названии нет: «Re zero 1 сезон» иначе даёт низший ранг всем строкам сразу,
+    отсечение отключается, и наверх всплывает посторонее.
     """
     if not query_key:
         return 0
@@ -60,7 +68,11 @@ def relevance_rank(query_key: str, title_key: str) -> int:
         return 1
     if query_key in title_key:
         return 2
-    return 3
+    # чисто цифровые слова не считаем: по «1» матчится «Take 1: с первого дубля»
+    tokens = [token for token in query_key.split() if not token.isdigit()]
+    if tokens and all(token in title_key for token in tokens):
+        return 3
+    return IRRELEVANT_RANK
 
 
 def group_results(
@@ -99,7 +111,8 @@ def group_results(
     for group in groups.values():
         group.entries.sort(key=lambda e: _priority_index(e[0], priority))
         _, best_result = group.entries[0]
-        group.title = best_result.title.strip()
+        # служебные хвосты страницы поиска в выдаче не нужны
+        group.title = strip_service_info(best_result.title)
         ordered.append(group)
 
     query_key = normalize_title(query)

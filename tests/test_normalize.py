@@ -1,6 +1,43 @@
 import pytest
 
-from anicli_multi.normalize import normalize_title
+from anicli_multi.normalize import normalize_title, strip_service_info
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Жизнь по вызову 3 сезон, 10 серия", "Жизнь по вызову"),
+        ("Во все тяжкие Завершен (все серии)", "Во все тяжкие"),
+        ("Во все тяжкие: Медведи 1 сезон, 8 серия", "Во все тяжкие: Медведи"),
+        ("Тайтл [все серии]", "Тайтл"),
+        ("Тайтл Онгоинг", "Тайтл"),
+        ("Тайтл сезон 2", "Тайтл"),
+        ("Тайтл серия 5", "Тайтл"),
+        ("Тайтл 12 эпизод", "Тайтл"),
+    ],
+)
+def test_strip_service_info(raw, expected):
+    assert strip_service_info(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Наруто 2",
+        "Наруто",
+        "Сезон охоты",
+        "Власть книжного червя 2",
+        "Наруто [OVA-8]",
+    ],
+)
+def test_strip_service_info_leaves_real_titles_alone(raw):
+    """Голые числа и слово «сезон» без числа — часть настоящих названий."""
+    assert strip_service_info(raw) == raw
+
+
+def test_service_suffix_does_not_block_grouping():
+    """Тайтл с хвостом и без должны давать один ключ."""
+    assert normalize_title("Жизнь по вызову 3 сезон, 10 серия") == normalize_title("Жизнь по вызову")
 
 
 @pytest.mark.parametrize(

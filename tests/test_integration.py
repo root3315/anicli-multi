@@ -41,6 +41,26 @@ async def test_type_word_that_is_part_of_the_title_falls_back():
     assert any("последний" in g.title.lower() for g in result.groups)
 
 
+async def test_season_qualifier_does_not_break_search():
+    """«Re zero 1 сезон» раньше давал 100 строк мусора без единого Re:Zero наверху."""
+    result = await _search("Re zero 1 сезон")
+    assert result.groups
+    assert "zero" in result.groups[0].title.lower()
+
+
+async def test_qualifier_and_type_together():
+    result = await _search("жизнь по вызову 1 сезон сериал")
+    assert result.groups
+    assert result.groups[0].kind == "сериал"
+
+
+async def test_displayed_titles_have_no_service_suffix():
+    result = await _search("жизнь по вызову")
+    for group in result.groups:
+        assert "сезон," not in group.title
+        assert "Завершен" not in group.title
+
+
 async def test_result_never_exceeds_limit():
     result = await _search("наруто", max_results=10)
     assert len(result.groups) == 10
