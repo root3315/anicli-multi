@@ -79,15 +79,13 @@
 На Linux, macOS и Windows одинаково:
 
 ```
-pipx install https://github.com/root3315/anicli-multi/releases/download/v0.4.0/anicli_multi-0.4.0-py3-none-any.whl
+pipx install anicli-multi
 ```
 
-Вместо `pipx` можно `uv tool install` с тем же адресом.
-
-Или прямо из репозитория:
+или
 
 ```
-pipx install git+https://github.com/root3315/anicli-multi.git@v0.4.0
+uv tool install anicli-multi
 ```
 
 Установка mpv: `sudo apt install mpv` на Debian и Ubuntu, `sudo pacman -S mpv` на Arch,
