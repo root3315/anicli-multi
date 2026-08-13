@@ -1,7 +1,7 @@
 """Команды поверх APP из anicli-ru: мультипоиск, алиасы, голый текст как запрос."""
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, Optional
 
 from anicli.cli.helpers.render import render_table
 from anicli.cli.ptk_lib import command
@@ -16,8 +16,40 @@ from .grouping import group_results
 CONSOLE = get_console()
 
 
-def build_extractors(sources: Sequence[str]) -> dict[str, Any]:
-    """Создать по экземпляру Extractor на источник. Неизвестные источники пропускаются."""
+def build_extractors(
+    sources: Sequence[str],
+    *,
+    proxy: Optional[str] = None,
+    headers: Optional[dict] = None,
+    cookies: Optional[Any] = None,
+    timeout: Optional[float] = None,
+) -> dict[str, Any]:
+    """Создать по экземпляру Extractor на источник с общим HTTP-клиентом.
+
+    Клиент создаётся здесь намеренно, а не берётся по умолчанию: в anicli-api
+    BaseExtractor.__init__ объявлен как `def __init__(self, http_client=HTTPSync(),
+    http_async_client=HTTPAsync())` — изменяемые значения по умолчанию, вычисляемые
+    один раз при импорте. Все экземпляры делили бы один клиент, и настройка прокси,
+    которую upstream применяет только к своему экстрактору, до наших не дошла бы.
+
+    Неизвестные источники пропускаются.
+    """
+    from anicli_api._http import HTTPAsync, HTTPSync
+
+    if proxy:
+        http = HTTPSync(proxy=proxy, headers=headers or {}, cookies=cookies or {}, timeout=timeout)
+        http_async = HTTPAsync(proxy=proxy, headers=headers or {}, cookies=cookies or {}, timeout=timeout)
+    else:
+        http = HTTPSync()
+        http_async = HTTPAsync()
+        for client in (http, http_async):
+            if headers:
+                client.headers.update(headers)
+            if cookies:
+                client.cookies.update(cookies)
+            if timeout is not None:
+                client.timeout = timeout
+
     extractors: dict[str, Any] = {}
     for name in sources:
         try:
@@ -25,8 +57,27 @@ def build_extractors(sources: Sequence[str]) -> dict[str, Any]:
         except (NameError, ImportError):
             CONSOLE.print(f"[yellow]Источник {name} недоступен, пропущен[/yellow]")
             continue
-        extractors[name] = module.Extractor()
+        extractor = module.Extractor()
+        extractor.http = http
+        extractor.http_async = http_async
+        extractors[name] = extractor
     return extractors
+
+
+async def on_start_build_extractors(ctx: Any) -> None:
+    """Стартовое событие: собрать экстракторы уже после применения настроек CLI.
+
+    Регистрируется в on_startup_events APP и выполняется, когда прокси, заголовки
+    и куки из аргументов командной строки уже лежат в контексте.
+    """
+    sources = ctx.data.get("multi_sources") or []
+    ctx.data["multi_extractors"] = build_extractors(
+        sources,
+        proxy=ctx.data.get("proxy"),
+        headers=ctx.data.get("headers"),
+        cookies=ctx.data.get("cookies"),
+        timeout=ctx.data.get("timeout"),
+    )
 
 
 def _print_failures(failures: Sequence[SourceFailure]) -> None:
@@ -119,6 +170,14 @@ def install(app: Any, config: MultiConfig) -> None:
     for alias, target, help_text in aliases:
         if app.command_manager.get_command(alias) is None:
             app.command_manager.register(_make_alias(alias, target, help_text))
+
+    app.context._data["multi_sources"] = list(config.sources)
+    app.context._data["multi_timeout"] = config.timeout
+
+    # экстракторы строятся стартовым событием: на этот момент прокси и заголовки
+    # из аргументов CLI уже применены к контексту
+    if on_start_build_extractors not in app.on_startup_events:
+        app.on_startup_events.append(on_start_build_extractors)
 
     if config.bare_text_search:
         install_bare_text_search(app)

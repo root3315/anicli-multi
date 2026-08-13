@@ -1,0 +1,12 @@
+anicli-multi
+
+Этот проект построен поверх следующих проектов, распространяемых по лицензии MIT:
+
+  anicli-ru   — https://github.com/vypivshiy/ani-cli-ru
+  anicli-api  — https://github.com/vypivshiy/anicli-api
+
+Copyright (c) vypivshiy
+
+Вся логика получения данных с источников и воспроизведения видео принадлежит
+этим проектам. anicli-multi добавляет поверх них поиск по нескольким источникам
+одновременно и группировку результатов.

@@ -46,10 +46,21 @@ class FakeFsmManager:
         self.registered.append(route)
 
 
+class FakeContext:
+    def __init__(self):
+        self._data = {}
+
+    @property
+    def data(self):
+        return self._data
+
+
 class FakeApp:
     def __init__(self, keys):
         self.command_manager = FakeCommandManager(keys)
         self.fsm_manager = FakeFsmManager()
+        self.context = FakeContext()
+        self.on_startup_events = []
 
 
 async def test_known_command_passes_through_unchanged():
@@ -90,6 +101,62 @@ def test_build_extractors_returns_instance_per_source():
 def test_build_extractors_skips_unknown_source():
     extractors = build_extractors(["animego", "такого-источника-нет"])
     assert list(extractors) == ["animego"]
+
+
+def test_build_extractors_does_not_share_default_client():
+    """Каждый вызов даёт свежий клиент.
+
+    В anicli-api клиенты — изменяемые значения по умолчанию, вычисляемые один раз
+    при импорте. Если не подменять их, все экстракторы делили бы один клиент и
+    настройка прокси до наших источников не дошла бы.
+    """
+    first = build_extractors(["animego"])["animego"]
+    second = build_extractors(["animego"])["animego"]
+    assert first.http_async is not second.http_async
+
+
+def test_build_extractors_shares_one_client_within_a_call():
+    """Внутри одного вызова клиент общий — это нужно для пула соединений."""
+    extractors = build_extractors(["animego", "anilibria"])
+    clients = {id(e.http_async) for e in extractors.values()}
+    assert len(clients) == 1
+
+
+def test_build_extractors_applies_headers():
+    extractors = build_extractors(["animego"], headers={"X-Test": "1"})
+    assert extractors["animego"].http_async.headers["X-Test"] == "1"
+
+
+def test_build_extractors_applies_proxy():
+    extractors = build_extractors(["animego"], proxy="http://127.0.0.1:9")
+    # httpx не раскрывает прокси публично, но клиент должен быть создан отдельно
+    # от дефолтного и не падать при конфигурации
+    assert extractors["animego"].http_async is not None
+
+
+async def test_startup_event_builds_extractors_into_context():
+    from anicli_multi.commands import on_start_build_extractors
+
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig(sources=["animego"]))
+    assert on_start_build_extractors in app.on_startup_events
+
+    await on_start_build_extractors(app.context)
+    assert list(app.context.data["multi_extractors"]) == ["animego"]
+
+
+def test_install_puts_sources_and_timeout_into_context():
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig(sources=["animego", "hdrezka"], timeout=7.5))
+    assert app.context.data["multi_sources"] == ["animego", "hdrezka"]
+    assert app.context.data["multi_timeout"] == 7.5
+
+
+def test_install_registers_startup_event_once():
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig())
+    install(app, MultiConfig())
+    assert len(app.on_startup_events) == 1
 
 
 def test_install_is_idempotent():

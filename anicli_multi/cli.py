@@ -80,18 +80,16 @@ def main() -> None:
     from anicli.cli.main import APP
     from anicli.main import app as upstream_app
 
-    from .commands import build_extractors, install
+    from .commands import install
 
     raw_sources, argv = split_own_args(sys.argv[1:])
     config: MultiConfig = load_config()
     if raw_sources:
         config.sources = [s.strip() for s in raw_sources.split(",") if s.strip()]
 
+    # install кладёт настройки в контекст и вешает стартовое событие, которое
+    # соберёт экстракторы уже с учётом --proxy, -H и --cookies
     install(APP, config)
-
-    extractors = build_extractors(config.sources)
-    APP.context._data["multi_extractors"] = extractors
-    APP.context._data["multi_timeout"] = config.timeout
 
     primary = config.sources[0] if config.sources else "animego"
     upstream_app(args=build_upstream_argv(argv, primary), prog_name="ani")
