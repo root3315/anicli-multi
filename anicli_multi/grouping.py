@@ -1,12 +1,13 @@
 """Склейка результатов поиска разных источников в группы по одному тайтлу."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any
 
 from .normalize import normalize_title
 
 # (имя источника, объект результата поиска)
-Entry = Tuple[str, Any]
+Entry = tuple[str, Any]
 
 
 @dataclass
@@ -15,10 +16,10 @@ class TitleGroup:
 
     key: str
     title: str
-    entries: List[Entry] = field(default_factory=list)
+    entries: list[Entry] = field(default_factory=list)
 
     @property
-    def sources(self) -> List[str]:
+    def sources(self) -> list[str]:
         return [source for source, _ in self.entries]
 
     def __str__(self) -> str:
@@ -35,16 +36,16 @@ def _priority_index(source: str, priority: Sequence[str]) -> int:
 
 
 def group_results(
-    per_source: Sequence[Tuple[str, Sequence[Any]]],
+    per_source: Sequence[tuple[str, Sequence[Any]]],
     priority: Sequence[str],
-) -> List[TitleGroup]:
+) -> list[TitleGroup]:
     """Сгруппировать результаты по нормализованному названию.
 
     Склейка только по точному совпадению ключа — см. спеку §6.
     Внутри группы источники упорядочены по приоритету, отображаемое название
     берётся у источника с наивысшим приоритетом.
     """
-    groups: Dict[str, TitleGroup] = {}
+    groups: dict[str, TitleGroup] = {}
 
     for source, results in per_source:
         for result in results:
@@ -60,7 +61,7 @@ def group_results(
                 continue
             group.entries.append((source, result))
 
-    ordered: List[TitleGroup] = []
+    ordered: list[TitleGroup] = []
     for group in groups.values():
         group.entries.sort(key=lambda e: _priority_index(e[0], priority))
         _, best_result = group.entries[0]
