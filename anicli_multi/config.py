@@ -7,10 +7,15 @@ from typing import Optional
 
 from platformdirs import user_config_dir
 
+from .kinds import KNOWN_CATEGORIES
+
 APP_NAME = "anicli-multi"
 
 DEFAULT_SOURCES: list[str] = ["animego", "hdrezka", "yummy-anime", "anilibria"]
 DEFAULT_TIMEOUT = 10.0
+# Разделы каталога hdrezka, по которым идёт поиск. ["animation"] вернёт прежнее
+# поведение — только аниме.
+DEFAULT_HDREZKA_CATEGORIES: list[str] = ["animation", "films", "series", "cartoons", "show"]
 
 
 @dataclass
@@ -18,6 +23,7 @@ class MultiConfig:
     sources: list[str] = field(default_factory=lambda: list(DEFAULT_SOURCES))
     timeout: float = DEFAULT_TIMEOUT
     bare_text_search: bool = True
+    hdrezka_categories: list[str] = field(default_factory=lambda: list(DEFAULT_HDREZKA_CATEGORIES))
 
 
 def config_path() -> Path:
@@ -44,6 +50,12 @@ def load_config(path: Optional[Path] = None) -> MultiConfig:
     bare = raw.get("bare_text_search")
     if isinstance(bare, bool):
         config.bare_text_search = bare
+    categories = raw.get("hdrezka_categories")
+    if isinstance(categories, list):
+        # неизвестные категории отбрасываем; если не осталось ничего — дефолт
+        known = [str(c) for c in categories if str(c) in KNOWN_CATEGORIES]
+        if known:
+            config.hdrezka_categories = known
     return config
 
 

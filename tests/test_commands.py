@@ -159,6 +159,50 @@ def test_install_registers_startup_event_once():
     assert len(app.on_startup_events) == 1
 
 
+def test_hdrezka_uses_extended_extractor():
+    from anicli_multi.hdrezka_all import HdrezkaAllExtractor
+
+    extractors = build_extractors(["hdrezka"])
+    assert isinstance(extractors["hdrezka"], HdrezkaAllExtractor)
+
+
+def test_hdrezka_categories_are_passed_through():
+    extractors = build_extractors(["hdrezka"], hdrezka_categories=["films"])
+    assert extractors["hdrezka"].categories == frozenset({"films"})
+
+
+def test_other_sources_use_stock_extractor():
+    from anicli_multi.hdrezka_all import HdrezkaAllExtractor
+
+    extractors = build_extractors(["animego"])
+    assert not isinstance(extractors["animego"], HdrezkaAllExtractor)
+
+
+def test_hdrezka_falls_back_to_stock_when_override_unsupported(monkeypatch):
+    """Смена контракта anicli-api не должна ломать инструмент."""
+    from anicli_multi.hdrezka_all import HdrezkaAllExtractor
+
+    monkeypatch.setattr("anicli_multi.commands.check_hdrezka_override", lambda: ["вёрстка изменилась"])
+    extractors = build_extractors(["hdrezka"])
+    assert "hdrezka" in extractors
+    assert not isinstance(extractors["hdrezka"], HdrezkaAllExtractor)
+
+
+async def test_startup_event_passes_categories_from_context():
+    from anicli_multi.commands import on_start_build_extractors
+
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig(sources=["hdrezka"], hdrezka_categories=["series"]))
+    await on_start_build_extractors(app.context)
+    assert app.context.data["multi_extractors"]["hdrezka"].categories == frozenset({"series"})
+
+
+def test_install_puts_hdrezka_categories_into_context():
+    app = FakeApp(["search", "ongoing", "history", "exit"])
+    install(app, MultiConfig(hdrezka_categories=["films"]))
+    assert app.context.data["multi_hdrezka_categories"] == ["films"]
+
+
 def test_install_is_idempotent():
     """Повторный install() не должен падать на уже зарегистрированных алиасах."""
     app = FakeApp(["search", "ongoing", "history", "exit"])

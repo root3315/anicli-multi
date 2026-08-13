@@ -27,6 +27,20 @@ def test_compat_error_is_runtime_error():
     assert issubclass(CompatError, RuntimeError)
 
 
+def test_hdrezka_override_is_supported_by_installed_anicli():
+    """Smoke: расширенный поиск hdrezka подключается к фактически установленной версии."""
+    from anicli_multi.compat import check_hdrezka_override
+
+    problems = check_hdrezka_override()
+    assert problems == [], "расширенный поиск hdrezka недоступен: " + "; ".join(problems)
+
+
+def test_check_hdrezka_override_returns_list():
+    from anicli_multi.compat import check_hdrezka_override
+
+    assert isinstance(check_hdrezka_override(), list)
+
+
 def test_assert_compat_raises_when_problems(monkeypatch):
     monkeypatch.setattr("anicli_multi.compat.check_compat", lambda: ["всё сломалось"])
     with pytest.raises(CompatError) as exc:
