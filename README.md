@@ -207,6 +207,17 @@ python -m pytest
 python -m pytest -m network
 ```
 
+### Релиз
+
+Публикация в PyPI идёт через Trusted Publishing — токены не используются. Достаточно
+поднять версию в `pyproject.toml` и `anicli_multi/__init__.py`, затем поставить тег:
+
+```
+git tag v0.5.1 && git push origin v0.5.1
+```
+
+GitHub Actions прогонит тесты на Windows и Linux, соберёт дистрибутив и выложит его в PyPI.
+
 ## Лицензия
 
 MIT. См. `NOTICE` — проект построен на `anicli-ru` и `anicli-api`, обе тоже MIT.
