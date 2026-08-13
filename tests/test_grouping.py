@@ -170,14 +170,45 @@ def test_badge_survives_real_rich_render():
 
 
 def test_relevance_rank_orders_exact_prefix_substring_rest():
+    from anicli_multi.grouping import IRRELEVANT_RANK
+
     assert relevance_rank("во все тяжкие", "во все тяжкие") == 0
     assert relevance_rank("во все тяжкие", "во все тяжкие мини эпизоды") == 1
     assert relevance_rank("во все тяжкие", "el camino во все тяжкие") == 2
-    assert relevance_rank("во все тяжкие", "власть книжного червя") == 3
+    assert relevance_rank("во все тяжкие", "власть книжного червя") == IRRELEVANT_RANK
 
 
 def test_relevance_rank_without_query_is_neutral():
     assert relevance_rank("", "что угодно") == 0
+
+
+def test_rank_3_matches_all_words_scattered():
+    """«Re zero» найдётся в «re zero жизнь с нуля», даже если фразы целиком нет."""
+    assert relevance_rank("наруто хроники", "наруто ураганные хроники") == 3
+
+
+def test_rank_3_ignores_word_order():
+    assert relevance_rank("хроники наруто", "наруто ураганные хроники") == 3
+
+
+def test_rank_3_requires_all_words():
+    assert relevance_rank("наруто хроники боруто", "наруто ураганные хроники") == 4
+
+
+def test_digit_only_words_are_ignored_in_rank_3():
+    """Цифра в запросе не должна ни мешать совпадению, ни вытягивать чужое."""
+    from anicli_multi.grouping import IRRELEVANT_RANK
+
+    # цифра не мешает: остальные слова на месте
+    assert relevance_rank("наруто 1", "наруто ураганные хроники") == 3
+    # цифра не спасает: значимого слова в названии нет
+    assert relevance_rank("наруто 1", "take 1 с первого дубля") == IRRELEVANT_RANK
+
+
+def test_irrelevant_rank_is_exported():
+    from anicli_multi.grouping import IRRELEVANT_RANK
+
+    assert relevance_rank("совсем другое", "наруто") == IRRELEVANT_RANK
 
 
 def test_exact_match_outranks_multi_source_noise():
@@ -208,6 +239,22 @@ def test_without_query_sorting_is_unchanged():
     ]
     groups = group_results(per_source, PRIORITY)
     assert groups[0].title == "Два"
+
+
+def test_displayed_title_has_no_service_suffix():
+    per_source = [("hdrezka", [FakeResult("Жизнь по вызову 3 сезон, 10 серия", FILM_URL)])]
+    assert group_results(per_source, PRIORITY)[0].title == "Жизнь по вызову"
+
+
+def test_service_suffix_no_longer_blocks_merging():
+    """Хвост со страницы поиска мешал склейке одного тайтла с разных источников."""
+    per_source = [
+        ("animego", [FakeResult("Во все тяжкие", ANIMEGO_URL)]),
+        ("hdrezka", [FakeResult("Во все тяжкие Завершен (все серии)", HDREZKA_ANIME_URL)]),
+    ]
+    groups = group_results(per_source, PRIORITY)
+    assert len(groups) == 1
+    assert groups[0].sources == ["animego", "hdrezka"]
 
 
 def test_custom_kind_resolver_is_used():

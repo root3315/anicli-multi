@@ -4,10 +4,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Optional
 
-from .grouping import TitleGroup, relevance_rank
-
-# Ранг, выше которого строка считается нерелевантной: запрос не встречается в названии.
-_IRRELEVANT_RANK = 3
+from .grouping import IRRELEVANT_RANK, TitleGroup, relevance_rank
 
 
 @dataclass
@@ -40,7 +37,7 @@ def refine(
     if not groups:
         return result
 
-    relevant = [g for g in groups if relevance_rank(query_key, g.key[1]) < _IRRELEVANT_RANK]
+    relevant = [g for g in groups if relevance_rank(query_key, g.key[1]) < IRRELEVANT_RANK]
     if relevant:
         base = relevant
         result.hidden_irrelevant = len(groups) - len(relevant)

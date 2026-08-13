@@ -89,3 +89,47 @@ def test_empty_query():
     parsed = parse_query("   ")
     assert parsed.text == ""
     assert parsed.kind is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Re zero 1 сезон", "Re zero"),
+        ("наруто 2 сезон", "наруто"),
+        ("наруто сезон 2", "наруто"),
+        ("наруто 5 серия", "наруто"),
+        ("наруто серия 5", "наруто"),
+        ("наруто 12 эпизод", "наруто"),
+        ("наруто смотреть онлайн", "наруто"),
+        ("наруто бесплатно", "наруто"),
+        ("наруто hd", "наруто"),
+        ("во все тяжкие 1 сезон смотреть", "во все тяжкие"),
+    ],
+)
+def test_qualifiers_are_stripped(raw, expected):
+    assert parse_query(raw).text == expected
+
+
+@pytest.mark.parametrize("raw", ["Сезон охоты", "Наруто 2", "Власть книжного червя 2"])
+def test_real_titles_are_not_damaged(raw):
+    """«Сезон охоты» — настоящее название, голое число — часть названия."""
+    assert parse_query(raw).text == raw
+
+
+def test_qualifier_and_kind_together():
+    """Сначала уточнение, потом тип."""
+    parsed = parse_query("жизнь по вызову сериал 1 сезон")
+    assert parsed.text == "жизнь по вызову"
+    assert parsed.kind == SERIES
+
+
+def test_kind_after_qualifier_removal():
+    parsed = parse_query("жизнь по вызову 1 сезон сериал")
+    assert parsed.text == "жизнь по вызову"
+    assert parsed.kind == SERIES
+
+
+def test_query_that_is_only_qualifiers_survives():
+    """Не должны вычистить запрос в пустоту."""
+    parsed = parse_query("1 сезон")
+    assert parsed.text
